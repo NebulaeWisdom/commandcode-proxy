@@ -2342,7 +2342,7 @@ function convertResponsesToChat(respReq) {
     if (!pending) return;
     if (!pending.tool_calls.length) delete pending.tool_calls;
     if (!pending.reasoning_content) delete pending.reasoning_content;
-    if (pending.content === null && !pending.tool_calls) { pending = null; return; }
+    if (pending.content === null && !pending.tool_calls && !pending.reasoning_content) { pending = null; return; }
     messages.push(pending);
     pending = null;
   };
