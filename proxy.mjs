@@ -1335,9 +1335,9 @@ async function handleChatCompletions(req, res) {
       const decoder = new TextDecoder();
       let buf = '';
 
-      const processLines = () => {
+      const processLines = (final = false) => {
         const lines = buf.split('\n');
-        buf = lines.pop() || '';
+        buf = final ? '' : (lines.pop() || '');
         for (const line of lines) {
           const trimmed = line.trim();
           if (!trimmed || trimmed === '[DONE]' || trimmed.startsWith(':')) continue;
@@ -1391,7 +1391,8 @@ async function handleChatCompletions(req, res) {
         if (chunkText.indexOf('\n') !== -1) processLines();
       }
       idle.dispose();
-      processLines();
+      buf += decoder.decode();
+      processLines(true);
 
       if (upstreamError) {
         sendJSON(res, upstreamError.status, upstreamError.body);
@@ -1779,15 +1780,14 @@ async function* createAnthropicSseTranslator(response, model, messageId, ctx) {
     while (true) {
       const result = await Promise.race([reader.read(), idle.arm()]);
       const { done, value } = result;
-      if (done) break;
-      ctx.bytesReceived += value.length;
-      const chunkText = decoder.decode(value, { stream: true });
+      if (!done) ctx.bytesReceived += value.length;
+      const chunkText = done ? decoder.decode() : decoder.decode(value, { stream: true });
       buffer += chunkText;
-      // 同 handleChatCompletions：无换行即无完整行，跳过全量 split
+      // 普通 chunk 只处理完整行；EOF 时也处理最后一个无换行的片段。
       let lines = [];
-      if (chunkText.indexOf('\n') !== -1) {
+      if (done || chunkText.indexOf('\n') !== -1) {
         lines = buffer.split('\n');
-        buffer = lines.pop() || '';
+        buffer = done ? '' : (lines.pop() || '');
       }
 
       let hadOutput = false;
@@ -1882,6 +1882,7 @@ async function* createAnthropicSseTranslator(response, model, messageId, ctx) {
             break;
         }
       }
+      if (done) break;
     }
 
     // 无论上游是否回报 usage，都把本地计数同步进 ctx（零输出判定与超时日志依赖它）。
@@ -2151,9 +2152,9 @@ async function handleMessages(req, res) {
       const decoder = new TextDecoder();
       let buf = '';
 
-      const processLines = () => {
+      const processLines = (final = false) => {
         const lines = buf.split('\n');
-        buf = lines.pop() || '';
+        buf = final ? '' : (lines.pop() || '');
         for (const line of lines) {
           const trimmed = line.trim();
           if (!trimmed || trimmed === '[DONE]') continue;
@@ -2206,7 +2207,8 @@ async function handleMessages(req, res) {
         if (chunkText.indexOf('\n') !== -1) processLines();
       }
       idle.dispose();
-      processLines();
+      buf += decoder.decode();
+      processLines(true);
 
       if (upstreamError) {
         sendAnthropicError(res, upstreamError.status, upstreamError.body.error.type, upstreamError.body.error.message);
@@ -2896,9 +2898,9 @@ async function handleResponses(req, res) {
       const decoder = new TextDecoder();
       let buf = '';
 
-      const processLines = () => {
+      const processLines = (final = false) => {
         const lines = buf.split('\n');
-        buf = lines.pop() || '';
+        buf = final ? '' : (lines.pop() || '');
         for (const line of lines) {
           const trimmed = line.trim();
           if (!trimmed || trimmed === '[DONE]' || trimmed.startsWith(':')) continue;
@@ -2948,7 +2950,8 @@ async function handleResponses(req, res) {
         if (chunkText.indexOf('\n') !== -1) processLines();
       }
       idle.dispose();
-      processLines();
+      buf += decoder.decode();
+      processLines(true);
 
       if (upstreamError) {
         sendResponsesError(res, upstreamError.status, upstreamError.body.error.type,
