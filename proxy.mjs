@@ -558,6 +558,11 @@ function buildCcRequest(openaiReq) {
       // [reasoning, text, tool-call]，reasoning 在最前。
       if (msg.reasoning_content) {
         parts.push({ type: 'reasoning', text: msg.reasoning_content });
+      } else if (Array.isArray(msg.content)) {
+        // reasoning_content 优先；否则先收集数组中的 reasoning，保留块内元信息。
+        for (const part of msg.content) {
+          if (part?.type === 'reasoning') parts.push(part);
+        }
       }
       if (msg.content && typeof msg.content === 'string') {
         if (msg.content) parts.push({ type: 'text', text: msg.content });
@@ -565,9 +570,6 @@ function buildCcRequest(openaiReq) {
         for (const part of msg.content) {
           if (!part) continue;
           if (part.type === 'text') parts.push(part);
-          // 客户端直接把 reasoning 放在 content 数组里时同样透传；
-          // 已有 reasoning_content 字段则不重复
-          else if (part.type === 'reasoning' && !msg.reasoning_content) parts.push(part);
         }
       }
       if (msg.tool_calls) {
