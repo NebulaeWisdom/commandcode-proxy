@@ -2362,7 +2362,10 @@ function convertResponsesToChat(respReq) {
       switch (item.type ?? (item.role ? 'message' : undefined)) {
         case 'reasoning': {
           const t = responsesReasoningOf(item);
-          if (t) ensurePending().reasoning_content = t;
+          if (t) {
+            const assistant = ensurePending();
+            assistant.reasoning_content = (assistant.reasoning_content || '') + t;
+          }
           break;
         }
         case 'message': {
